@@ -175,3 +175,11 @@ export function Compare() {
     </div>
   );
 }
+
+export function ThemeToggle({ theme, onToggle }) {
+  return (
+    <button className="theme" onClick={onToggle} aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} background`}>
+      {theme === "dark" ? "Light background" : "Dark background"}
+    </button>
+  );
+}

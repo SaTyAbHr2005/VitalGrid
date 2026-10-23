@@ -1,21 +1,24 @@
 import { lazy, Suspense, useEffect, useState } from "react";
-import { API_URL, WS_URL } from "./api.js";
+import { API_URL, WS_URL, waitForServer } from "./api.js";
+import Home from "./Home.jsx";
 import Twin2D from "./Twin2D.jsx";
-import { Alerts, Compare, Inject, Legend, NodeDetail } from "./Panels.jsx";
+import { Alerts, Compare, Inject, Legend, NodeDetail, ThemeToggle } from "./Panels.jsx";
 import "./styles.css";
 
 const Twin3D = lazy(() => import("./Twin3D.jsx")); // three.js only loads when the 3D view is opened
 
-// Render free tier sleeps after 15 min idle; keep polling /health until it wakes (~1 min).
-async function waitForServer() {
-  for (;;) {
-    try {
-      if ((await fetch(`${API_URL}/health`)).ok) return;
-    } catch {
-      /* still waking up */
-    }
-    await new Promise((res) => setTimeout(res, 3000));
-  }
+// Hash routes keep the static Vercel deploy free of rewrite rules. Anything else is the homepage.
+const ROUTES = { "#/twin": "2d", "#/3d": "3d", "#/compare": "compare" };
+const VIEWS = [["#/twin", "Floor plan"], ["#/3d", "3D twin"], ["#/compare", "Method comparison"]];
+
+function useHash() {
+  const [hash, setHash] = useState(window.location.hash);
+  useEffect(() => {
+    const onChange = () => { setHash(window.location.hash); window.scrollTo(0, 0); };
+    window.addEventListener("hashchange", onChange);
+    return () => window.removeEventListener("hashchange", onChange);
+  }, []);
+  return hash;
 }
 
 function useLive(ready) {
@@ -59,12 +62,10 @@ function useTheme() {
   return [theme, () => setTheme(applyTheme(theme === "dark" ? "light" : "dark"))];
 }
 
-export default function App() {
-  const [theme, toggleTheme] = useTheme();
+function Dashboard({ view, hash, theme, toggleTheme }) {
   const [graph, setGraph] = useState(null);
   const [faults, setFaults] = useState(null);
   const [error, setError] = useState(null);
-  const [view, setView] = useState("2d");
   const [selected, setSelected] = useState(null);
   const [, setFault] = useState(null);
   const live = useLive(Boolean(graph));
@@ -87,19 +88,17 @@ export default function App() {
   return (
     <div className="app">
       <header className="topbar">
-        <h1>VitalGrid</h1>
+        <h1><a href="#/" className="brand">VitalGrid</a></h1>
         <span className="status"><span className={`dot ${live?.status === "live" ? "live" : ""}`} />{status}</span>
         <nav className="tabs" aria-label="View">
-          {[["2d", "Floor plan"], ["3d", "3D twin"], ["compare", "Method comparison"]].map(([k, l]) => (
-            <button key={k} aria-pressed={view === k} onClick={() => setView(k)}>{l}</button>
+          {VIEWS.map(([h, l]) => (
+            <a key={h} href={h} aria-current={hash === h ? "page" : undefined}>{l}</a>
           ))}
         </nav>
         <span className="fault">
           {fault ? `Active fault: ${fault.type.replaceAll("_", " ")} at ${fault.source}` : "No active fault"}
         </span>
-        <button className="theme" onClick={toggleTheme} aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} background`}>
-          {theme === "dark" ? "Light background" : "Dark background"}
-        </button>
+        <ThemeToggle theme={theme} onToggle={toggleTheme} />
       </header>
 
       {view === "compare" ? <Compare /> : (
@@ -126,4 +125,13 @@ export default function App() {
       )}
     </div>
   );
+}
+
+export default function App() {
+  const [theme, toggleTheme] = useTheme();
+  const hash = useHash();
+  const view = ROUTES[hash];
+  return view
+    ? <Dashboard view={view} hash={hash} theme={theme} toggleTheme={toggleTheme} />
+    : <Home theme={theme} toggleTheme={toggleTheme} />;
 }
