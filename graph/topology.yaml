@@ -1,0 +1,47 @@
+# ICU dependency graph: 8 shared nodes + 5 nodes per room x 4 rooms = 28 nodes.
+# Edges point from the dependency to the dependent: [source, RELATION, target].
+# In room_nodes / room_edges, "{r}" expands to 01..04.
+
+relations: [POWERS, SUPPORTS_CONNECTIVITY, ENVIRONMENT_AFFECTS, SUPPLIES_OXYGEN, SUPPLIES_MEDICAL_AIR]
+
+node_types: [power, switch, environment, ventilator, pump, monitor, gas]
+
+rooms: ["01", "02", "03", "04"]
+
+shared_nodes:
+  - {id: GRID,    type: power,  criticality: 2}
+  - {id: GEN,     type: power,  criticality: 2}
+  - {id: ATS,     type: power,  criticality: 3}
+  - {id: CPD,     type: power,  criticality: 3}
+  - {id: NET-UPS, type: power,  criticality: 2}
+  - {id: SW-01,   type: switch, criticality: 2}
+  - {id: O2-SUP,  type: gas,    criticality: 3}
+  - {id: AIR-SUP, type: gas,    criticality: 2}
+
+room_nodes:
+  - {id: "UPS-{r}",  type: power,       criticality: 3}
+  - {id: "ENV-{r}",  type: environment, criticality: 1}
+  - {id: "VENT-{r}", type: ventilator,  criticality: 3}
+  - {id: "MON-{r}",  type: monitor,     criticality: 2}
+  - {id: "PUMP-{r}", type: pump,        criticality: 2}
+
+shared_edges:
+  - [GRID,    POWERS, ATS]
+  - [GEN,     POWERS, ATS]
+  - [ATS,     POWERS, CPD]
+  - [CPD,     POWERS, NET-UPS]
+  - [NET-UPS, POWERS, SW-01]
+
+room_edges:
+  - [CPD,       POWERS,                "UPS-{r}"]
+  - ["UPS-{r}", POWERS,                "VENT-{r}"]
+  - ["UPS-{r}", POWERS,                "MON-{r}"]
+  - ["UPS-{r}", POWERS,                "PUMP-{r}"]
+  - [SW-01,     SUPPORTS_CONNECTIVITY, "VENT-{r}"]
+  - [SW-01,     SUPPORTS_CONNECTIVITY, "MON-{r}"]
+  - [SW-01,     SUPPORTS_CONNECTIVITY, "PUMP-{r}"]
+  - ["ENV-{r}", ENVIRONMENT_AFFECTS,   "VENT-{r}"]
+  - ["ENV-{r}", ENVIRONMENT_AFFECTS,   "MON-{r}"]
+  - ["ENV-{r}", ENVIRONMENT_AFFECTS,   "PUMP-{r}"]
+  - [O2-SUP,    SUPPLIES_OXYGEN,       "VENT-{r}"]
+  - [AIR-SUP,   SUPPLIES_MEDICAL_AIR,  "VENT-{r}"]

@@ -1,0 +1,242 @@
+{
+  "test": {
+    "B1": {
+      "name": "Threshold only (LSTM-AE)",
+      "precision": 0.76,
+      "recall": 0.858,
+      "f1": 0.806,
+      "false_prop_rate": 0.297,
+      "path_correctness": null,
+      "detection_delay_s": 2.0,
+      "missed_cascade_nodes": 0,
+      "false_alerts_per_scenario": 3.22
+    },
+    "B2": {
+      "name": "Temporal correlation",
+      "precision": 0.687,
+      "recall": 0.859,
+      "f1": 0.764,
+      "false_prop_rate": 0.379,
+      "path_correctness": null,
+      "detection_delay_s": 2.0,
+      "missed_cascade_nodes": 0,
+      "false_alerts_per_scenario": 14.16
+    },
+    "B3": {
+      "name": "Graph reachability",
+      "precision": 0.451,
+      "recall": 0.878,
+      "f1": 0.596,
+      "false_prop_rate": 0.62,
+      "path_correctness": 1.0,
+      "detection_delay_s": 1.0,
+      "missed_cascade_nodes": 0,
+      "false_alerts_per_scenario": 7.33
+    },
+    "B4": {
+      "name": "Untyped GAT",
+      "precision": 0.907,
+      "recall": 0.861,
+      "f1": 0.883,
+      "false_prop_rate": 0.121,
+      "path_correctness": null,
+      "detection_delay_s": 2.0,
+      "missed_cascade_nodes": 0,
+      "false_alerts_per_scenario": 1.47
+    },
+    "B5": {
+      "name": "Typed GAT",
+      "precision": 0.913,
+      "recall": 0.862,
+      "f1": 0.887,
+      "false_prop_rate": 0.114,
+      "path_correctness": 1.0,
+      "detection_delay_s": 2.0,
+      "missed_cascade_nodes": 0,
+      "false_alerts_per_scenario": 1.24
+    },
+    "R": {
+      "name": "Rules only (R1-R4)",
+      "precision": 0.986,
+      "recall": 0.855,
+      "f1": 0.916,
+      "false_prop_rate": 0.018,
+      "path_correctness": 1.0,
+      "detection_delay_s": 6.0,
+      "missed_cascade_nodes": 0,
+      "false_alerts_per_scenario": 1.24
+    },
+    "B6": {
+      "name": "Typed GAT + rules (VitalGrid)",
+      "precision": 0.993,
+      "recall": 0.846,
+      "f1": 0.914,
+      "false_prop_rate": 0.01,
+      "path_correctness": 1.0,
+      "detection_delay_s": 6.0,
+      "missed_cascade_nodes": 0,
+      "false_alerts_per_scenario": 0.71
+    },
+    "alert_reduction_b6_vs_b1": 0.78
+  },
+  "heldout": {
+    "B1": {
+      "name": "Threshold only (LSTM-AE)",
+      "precision": 0.677,
+      "recall": 0.843,
+      "f1": 0.751,
+      "false_prop_rate": 0.406,
+      "path_correctness": null,
+      "detection_delay_s": -6.0,
+      "missed_cascade_nodes": 0,
+      "false_alerts_per_scenario": 3.3
+    },
+    "B2": {
+      "name": "Temporal correlation",
+      "precision": 0.609,
+      "recall": 0.848,
+      "f1": 0.709,
+      "false_prop_rate": 0.478,
+      "path_correctness": null,
+      "detection_delay_s": -7.5,
+      "missed_cascade_nodes": 0,
+      "false_alerts_per_scenario": 16.17
+    },
+    "B3": {
+      "name": "Graph reachability",
+      "precision": 0.647,
+      "recall": 0.867,
+      "f1": 0.741,
+      "false_prop_rate": 0.435,
+      "path_correctness": 0.996,
+      "detection_delay_s": -14.5,
+      "missed_cascade_nodes": 0,
+      "false_alerts_per_scenario": 5.47
+    },
+    "B4": {
+      "name": "Untyped GAT",
+      "precision": 0.799,
+      "recall": 0.116,
+      "f1": 0.203,
+      "false_prop_rate": 0.201,
+      "path_correctness": null,
+      "detection_delay_s": -9.5,
+      "missed_cascade_nodes": 0,
+      "false_alerts_per_scenario": 2.27
+    },
+    "B5": {
+      "name": "Typed GAT",
+      "precision": 0.706,
+      "recall": 0.566,
+      "f1": 0.628,
+      "false_prop_rate": 0.306,
+      "path_correctness": 1.0,
+      "detection_delay_s": 5.0,
+      "missed_cascade_nodes": 0,
+      "false_alerts_per_scenario": 2.27
+    },
+    "R": {
+      "name": "Rules only (R1-R4)",
+      "precision": 0.93,
+      "recall": 0.816,
+      "f1": 0.87,
+      "false_prop_rate": 0.097,
+      "path_correctness": 1.0,
+      "detection_delay_s": 0.5,
+      "missed_cascade_nodes": 0,
+      "false_alerts_per_scenario": 4.0
+    },
+    "B6": {
+      "name": "Typed GAT + rules (VitalGrid)",
+      "precision": 0.919,
+      "recall": 0.566,
+      "f1": 0.7,
+      "false_prop_rate": 0.085,
+      "path_correctness": 1.0,
+      "detection_delay_s": 5.0,
+      "missed_cascade_nodes": 0,
+      "false_alerts_per_scenario": 3.7
+    },
+    "alert_reduction_b6_vs_b1": -0.121
+  },
+  "noise2x": {
+    "B1": {
+      "name": "Threshold only (LSTM-AE)",
+      "precision": 0.206,
+      "recall": 1.0,
+      "f1": 0.341,
+      "false_prop_rate": 0.82,
+      "path_correctness": null,
+      "detection_delay_s": 2.0,
+      "missed_cascade_nodes": 0,
+      "false_alerts_per_scenario": 22.53
+    },
+    "B2": {
+      "name": "Temporal correlation",
+      "precision": 0.206,
+      "recall": 1.0,
+      "f1": 0.341,
+      "false_prop_rate": 0.82,
+      "path_correctness": null,
+      "detection_delay_s": 2.0,
+      "missed_cascade_nodes": 0,
+      "false_alerts_per_scenario": 22.53
+    },
+    "B3": {
+      "name": "Graph reachability",
+      "precision": 0.206,
+      "recall": 1.0,
+      "f1": 0.341,
+      "false_prop_rate": 0.82,
+      "path_correctness": 0.118,
+      "detection_delay_s": 2.0,
+      "missed_cascade_nodes": 0,
+      "false_alerts_per_scenario": 22.53
+    },
+    "B4": {
+      "name": "Untyped GAT",
+      "precision": 0.266,
+      "recall": 0.928,
+      "f1": 0.414,
+      "false_prop_rate": 0.752,
+      "path_correctness": null,
+      "detection_delay_s": 2.0,
+      "missed_cascade_nodes": 0,
+      "false_alerts_per_scenario": 24.57
+    },
+    "B5": {
+      "name": "Typed GAT",
+      "precision": 0.262,
+      "recall": 0.931,
+      "f1": 0.409,
+      "false_prop_rate": 0.756,
+      "path_correctness": 0.117,
+      "detection_delay_s": 2.0,
+      "missed_cascade_nodes": 0,
+      "false_alerts_per_scenario": 24.13
+    },
+    "R": {
+      "name": "Rules only (R1-R4)",
+      "precision": 0.915,
+      "recall": 0.842,
+      "f1": 0.877,
+      "false_prop_rate": 0.099,
+      "path_correctness": 0.998,
+      "detection_delay_s": 7.0,
+      "missed_cascade_nodes": 0,
+      "false_alerts_per_scenario": 10.47
+    },
+    "B6": {
+      "name": "Typed GAT + rules (VitalGrid)",
+      "precision": 0.923,
+      "recall": 0.789,
+      "f1": 0.851,
+      "false_prop_rate": 0.085,
+      "path_correctness": 0.998,
+      "detection_delay_s": 7.0,
+      "missed_cascade_nodes": 0,
+      "false_alerts_per_scenario": 8.57
+    },
+    "alert_reduction_b6_vs_b1": 0.62
+  }
+}
