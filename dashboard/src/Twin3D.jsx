@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import gsap from "gsap";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { CSS2DObject, CSS2DRenderer } from "three/examples/jsm/renderers/CSS2DRenderer.js";
@@ -240,7 +241,7 @@ function build(graph, onPick) {
   slab(scene, std(C.corridor, { roughness: 0.85 }), CORRIDOR, 0.06);
   wall(scene, M, CORRIDOR.x[0], CORRIDOR.z[0], CORRIDOR.x[0], CORRIDOR.z[1]);
   wall(scene, M, CORRIDOR.x[1], CORRIDOR.z[0], CORRIDOR.x[1], CORRIDOR.z[1]);
-  label(scene, "Corridor · services run along the ceiling", "tw3-area", 1, 0.15, 0);
+  label(scene, "Services run along the corridor ceiling", "tw3-area", 1, 0.15, 0);
   slab(scene, std(C.yard, { roughness: 1 }), YARD, 0.04);
   wall(scene, M, YARD.x[0], YARD.z[0], YARD.x[1], YARD.z[0], 0.9, 0.05, M.fence);
   wall(scene, M, YARD.x[0], YARD.z[0], YARD.x[0], YARD.z[1], 0.9, 0.05, M.fence);
@@ -371,8 +372,146 @@ function refreshLabels(s) {
   }
 }
 
+const reducedMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+const VIEW = new THREE.Vector3(6, 30, 30).normalize();
+
+// Where to look at a piece of equipment from: above it, on the corridor side of its room.
+export function closeView(id, dist = 7) {
+  const at = place(id);
+  if (!at) return null;
+  const target = new THREE.Vector3(at[0], 0.8, at[1]);
+  const pos = target.clone().add(new THREE.Vector3(1.6, 3.4, at[1] < 0 ? 4 : -4).normalize().multiplyScalar(dist));
+  return { pos, target };
+}
+
+// Builds the building scene into `host` and runs it. Used by the 3D view (orbit controls) and by the
+// homepage story (interactive: false, camera driven from outside through `camera` and `target`).
+// viewShift(w) moves the picture right by that fraction of the width, leaving room for text on the left.
+export function createTwin(host, graph, { onPick = () => {}, interactive = true, viewShift = () => 0 } = {}) {
+  const motion = !reducedMotion();
+  const s = build(graph, onPick);
+  applyLive(s, null, null);
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFShadowMap;
+  const labels = new CSS2DRenderer();
+  Object.assign(labels.domElement.style, { position: "absolute", inset: "0", pointerEvents: "none" });
+  host.append(renderer.domElement, labels.domElement);
+
+  const camera = new THREE.PerspectiveCamera(40, 1, 0.3, 300);
+  const target = CENTER.clone();
+  const controls = interactive ? new OrbitControls(camera, renderer.domElement) : null;
+  if (controls) {
+    controls.target = target;
+    Object.assign(controls, { enableDamping: true, maxPolarAngle: 1.4, minDistance: 3, maxDistance: 90 });
+  }
+
+  // Default framing: back off just far enough for the ~31 m wide wing to fill the view
+  const homeView = () => {
+    const tan = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+    return { pos: CENTER.clone().addScaledVector(VIEW, Math.max(16.5 / (tan * camera.aspect), 11 / tan)), target: CENTER.clone() };
+  };
+  let framed = false;
+  const resize = () => {
+    const { clientWidth: w, clientHeight: h } = host;
+    renderer.setSize(w, h);
+    labels.setSize(w, h);
+    camera.aspect = w / Math.max(h, 1);
+    const shift = viewShift(w);
+    if (shift) camera.setViewOffset(w, h, -w * shift, 0, w, h);
+    else camera.clearViewOffset();
+    camera.updateProjectionMatrix();
+    if (framed || !w) return;
+    camera.position.copy(homeView().pos);
+    framed = true;
+  };
+  const ro = new ResizeObserver(resize);
+  ro.observe(host);
+  resize();
+
+  const fly = ({ pos, target: to }, duration = 0.9) => {
+    gsap.killTweensOf([camera.position, target]);
+    const d = motion ? duration : 0;
+    gsap.to(camera.position, { x: pos.x, y: pos.y, z: pos.z, duration: d, ease: "power3.inOut" });
+    gsap.to(target, { x: to.x, y: to.y, z: to.z, duration: d, ease: "power3.inOut" });
+  };
+
+  // Click (not drag) on equipment selects it
+  const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+  const hit = (ev) => {
+    const r = renderer.domElement.getBoundingClientRect();
+    ndc.set(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1);
+    ray.setFromCamera(ndc, camera);
+    return ray.intersectObjects(s.pickable, true)[0]?.object.userData.id;
+  };
+  let down = null;
+  const onDown = (ev) => { down = [ev.clientX, ev.clientY]; };
+  const onUp = (ev) => {
+    if (down && Math.hypot(ev.clientX - down[0], ev.clientY - down[1]) < 5) { const id = hit(ev); if (id) onPick(id); }
+    down = null;
+  };
+  const onMove = (ev) => {
+    if (down) return;
+    const id = hit(ev);
+    renderer.domElement.style.cursor = id ? "pointer" : "";
+    if (id !== s.hover) { s.hover = id; refreshLabels(s); }
+  };
+  if (interactive) {
+    renderer.domElement.addEventListener("pointerdown", onDown);
+    renderer.domElement.addEventListener("pointerup", onUp);
+    renderer.domElement.addEventListener("pointermove", onMove);
+  }
+
+  // Alarm flash rates follow IEC 60601-1-8: high priority ~2 Hz, medium priority ~0.6 Hz (design.md 4.2)
+  const flash = (hz, t) => (motion ? 0.5 + 0.5 * Math.sin(2 * Math.PI * hz * t) : 1);
+  let raf;
+  const tick = () => {
+    raf = requestAnimationFrame(tick);
+    const t = performance.now() / 1000, alarm = flash(2, t), watch = flash(0.6, t);
+    for (const d of Object.values(s.devices)) {
+      const k = d.state === "alarm" ? alarm : d.state === "watch" ? watch : 0;
+      d.body.emissiveIntensity = 0.1 + 0.4 * k;
+      d.halo.scale.setScalar(d.foot * (d.state === "alarm" ? 1 + 0.12 * alarm : 1));
+    }
+    for (const p of s.particles) {
+      const { edge, off } = p.userData;
+      p.visible = motion;
+      p.position.copy(edge.path.getPoint((t * 3 / edge.len + off) % 1));
+    }
+    if (controls) controls.update();
+    else camera.lookAt(target);
+    renderer.render(s.scene, camera);
+    labels.render(s.scene, camera);
+  };
+  tick();
+
+  return {
+    camera, target,
+    apply: (live, selected) => applyLive(s, live, selected),
+    setAllLabels: (v) => { s.allLabels = v; refreshLabels(s); },
+    flyTo: (id) => { const v = closeView(id); if (v) fly(v); },
+    resetView: () => fly(homeView()),
+    homeView,
+    dispose: () => {
+      cancelAnimationFrame(raf);
+      gsap.killTweensOf([camera.position, target]);
+      ro.disconnect();
+      controls?.dispose();
+      s.scene.traverse((o) => {
+        o.geometry?.dispose();
+        [o.material].flat().forEach((m) => m?.dispose());
+      });
+      renderer.dispose();
+      renderer.domElement.remove();
+      labels.domElement.remove();
+    },
+  };
+}
+
 export default function Twin3D({ graph, live, selected, onSelect, theme }) {
-  const mount = useRef(null), sceneRef = useRef(null), liveRef = useRef(live), selRef = useRef(selected), pickRef = useRef(onSelect);
+  const mount = useRef(null), twinRef = useRef(null), liveRef = useRef(live), selRef = useRef(selected), pickRef = useRef(onSelect);
   liveRef.current = live;
   selRef.current = selected;
   pickRef.current = onSelect;
@@ -381,116 +520,24 @@ export default function Twin3D({ graph, live, selected, onSelect, theme }) {
   labelsRef.current = allLabels;
 
   useEffect(() => {
-    const host = mount.current;
-    const s = build(graph, (id) => pickRef.current(id));
-    sceneRef.current = s;
-    s.allLabels = labelsRef.current;
-    applyLive(s, liveRef.current, selRef.current);
-
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFShadowMap;
-    const labels = new CSS2DRenderer();
-    Object.assign(labels.domElement.style, { position: "absolute", inset: "0", pointerEvents: "none" });
-    host.append(renderer.domElement, labels.domElement);
-
-    const camera = new THREE.PerspectiveCamera(40, 1, 0.5, 300);
-    const controls = new OrbitControls(camera, renderer.domElement);
-    controls.target.copy(CENTER);
-    Object.assign(controls, { enableDamping: true, maxPolarAngle: 1.4, minDistance: 5, maxDistance: 90 });
-
-    const VIEW = new THREE.Vector3(6, 30, 30).normalize();
-    let framed = false;
-    const resize = () => {
-      const { clientWidth: w, clientHeight: h } = host;
-      renderer.setSize(w, h);
-      labels.setSize(w, h);
-      camera.aspect = w / Math.max(h, 1);
-      camera.updateProjectionMatrix();
-      if (framed || !w) return;
-      // First layout: back off just far enough for the ~31 m wide wing to fill the panel
-      const tan = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
-      camera.position.copy(CENTER).addScaledVector(VIEW, Math.max(16.5 / (tan * camera.aspect), 11 / tan));
-      framed = true;
-    };
-    const ro = new ResizeObserver(resize);
-    ro.observe(host);
-    resize();
-
-    // Click (not drag) on equipment selects it
-    const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
-    const hit = (ev) => {
-      const r = renderer.domElement.getBoundingClientRect();
-      ndc.set(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1);
-      ray.setFromCamera(ndc, camera);
-      return ray.intersectObjects(s.pickable, true)[0]?.object.userData.id;
-    };
-    let down = null;
-    const onDown = (ev) => { down = [ev.clientX, ev.clientY]; };
-    const onUp = (ev) => {
-      if (down && Math.hypot(ev.clientX - down[0], ev.clientY - down[1]) < 5) { const id = hit(ev); if (id) pickRef.current(id); }
-      down = null;
-    };
-    const onMove = (ev) => {
-      if (down) return;
-      const id = hit(ev);
-      renderer.domElement.style.cursor = id ? "pointer" : "";
-      if (id !== s.hover) { s.hover = id; refreshLabels(s); }
-    };
-    renderer.domElement.addEventListener("pointerdown", onDown);
-    renderer.domElement.addEventListener("pointerup", onUp);
-    renderer.domElement.addEventListener("pointermove", onMove);
-
-    let raf;
-    const tick = () => {
-      raf = requestAnimationFrame(tick);
-      const t = performance.now() / 1000, pulse = 0.5 + 0.5 * Math.sin(t * 5);
-      for (const d of Object.values(s.devices)) {
-        const k = d.state === "alarm" ? pulse : d.state === "watch" ? 0.5 : 0;
-        d.body.emissiveIntensity = 0.15 + 0.35 * k;
-        d.halo.scale.setScalar(d.foot * (d.state === "alarm" ? 1 + 0.12 * pulse : 1));
-      }
-      for (const p of s.particles) {
-        const { edge, off } = p.userData;
-        p.position.copy(edge.path.getPoint((t * 3 / edge.len + off) % 1));
-      }
-      controls.update();
-      renderer.render(s.scene, camera);
-      labels.render(s.scene, camera);
-    };
-    tick();
-
-    return () => {
-      cancelAnimationFrame(raf);
-      ro.disconnect();
-      controls.dispose();
-      s.scene.traverse((o) => {
-        o.geometry?.dispose();
-        [o.material].flat().forEach((m) => m?.dispose());
-      });
-      renderer.dispose();
-      renderer.domElement.remove();
-      labels.domElement.remove();
-      sceneRef.current = null;
-    };
+    const twin = createTwin(mount.current, graph, { onPick: (id) => pickRef.current(id) });
+    twinRef.current = twin;
+    twin.setAllLabels(labelsRef.current);
+    twin.apply(liveRef.current, selRef.current);
+    return () => { twin.dispose(); twinRef.current = null; };
   }, [graph, theme]);
 
-  useEffect(() => {
-    if (sceneRef.current) applyLive(sceneRef.current, live, selected);
-  }, [live, selected]);
-
-  useEffect(() => {
-    const s = sceneRef.current;
-    if (s) { s.allLabels = allLabels; refreshLabels(s); }
-  }, [allLabels]);
+  useEffect(() => { twinRef.current?.apply(live, selected); }, [live, selected]);
+  useEffect(() => { if (selected) twinRef.current?.flyTo(selected); }, [selected]);
+  useEffect(() => { twinRef.current?.setAllLabels(allLabels); }, [allLabels]);
 
   return (
     <div ref={mount} style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
-      <button className="tw3-toggle" onClick={() => setAllLabels((v) => !v)}>
-        {allLabels ? "Hide equipment names" : "Show all equipment names"}
-      </button>
-      <p className="tw3-hint">Drag to orbit · right-drag to pan · scroll to zoom · hover or click equipment for details</p>
+      <div className="tw3-tools">
+        <button onClick={() => setAllLabels((v) => !v)}>{allLabels ? "Hide equipment names" : "Show all equipment names"}</button>
+        <button onClick={() => { onSelect(null); twinRef.current?.resetView(); }}>Reset view</button>
+      </div>
+      <p className="tw3-hint">Drag to turn the building. Right-drag to move, scroll to zoom, click equipment to inspect it.</p>
     </div>
   );
 }

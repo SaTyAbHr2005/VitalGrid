@@ -18,6 +18,14 @@ from backend.rules import cause, signals, verify
 from sim.simulator import METRICS, NODE_TYPE, NODES, Sim
 
 IDLE_AFTER_S = 600
+RELEASE = 0.5  # a raised alert holds while the rules confirm it and the GAT stays above this
+
+
+def alert_gate(accepted, prob, raised, threshold):
+    """Hysteresis on the GAT probability, as alarm systems do: an alert is raised at `threshold` and held
+    down to RELEASE, so a probability hovering near the threshold doesn't make it blink every cycle.
+    The rules must confirm it every cycle, so clearing a fault still drops it at once."""
+    return {n for n in accepted if prob[n] >= threshold or (n in raised and prob[n] >= RELEASE)}
 
 
 class LiveEngine:
@@ -30,6 +38,7 @@ class LiveEngine:
         self.last_active = 0.0
         self.clients = set()
         self.latest = {"status": "idle"}
+        self.raised = set()  # alerts shown last cycle (see alert_gate)
 
     def touch(self):
         self.last_active = time.time()
@@ -84,7 +93,8 @@ class LiveEngine:
         prob, attn = self.reasoning.predict(feats)
         s = signals(self.perception.cal, win)
         accepted = verify(s, r[0])
-        alerts = [n for n in accepted if prob[0, IDX[n]] >= self.reasoning.threshold]
+        self.raised = alert_gate(accepted, {n: prob[0, IDX[n]] for n in accepted}, self.raised, self.reasoning.threshold)
+        alerts = [n for n in NODES if n in self.raised]
         items = [{"node": n, "node_type": NODE_TYPE[n], "path": accepted[n]["path"],
                   "cause": cause(accepted[n]["path"][0], s), "rules": accepted[n]["rules"]} for n in alerts]
         texts = dict(zip(alerts, explain_many(items))) if items else {}
@@ -110,3 +120,13 @@ class LiveEngine:
                 await ws.send_json(doc)
             except Exception:
                 self.clients.discard(ws)
+
+
+if __name__ == "__main__":
+    # alert_gate self-check: raise at the threshold, hold above RELEASE, drop when the rules stop confirming.
+    p = {"A": 0.85, "B": 0.75, "C": 0.75, "D": 0.40}
+    accepted = {"A": {}, "B": {}, "C": {}, "D": {}}
+    assert alert_gate(accepted, p, set(), 0.8) == {"A"}                    # only A is high enough to raise
+    assert alert_gate(accepted, p, {"A", "B", "D"}, 0.8) == {"A", "B"}     # B held, D below RELEASE drops
+    assert alert_gate({"A": {}}, p, {"A", "B"}, 0.8) == {"A"}              # rules no longer confirm B
+    print("alert_gate ok")

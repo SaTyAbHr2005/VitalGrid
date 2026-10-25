@@ -4,15 +4,15 @@ export const RELATION_STYLE = {
   POWERS: { color: "var(--power)", dash: undefined, label: "Power feed" },
   SUPPORTS_CONNECTIVITY: { color: "var(--network)", dash: "6 4", label: "Network" },
   ENVIRONMENT_AFFECTS: { color: "var(--environment)", dash: "5 3", label: "Room environment" },
-  SUPPLIES_OXYGEN: { color: "var(--utility)", dash: "2 4", label: "Medical gas" },
-  SUPPLIES_MEDICAL_AIR: { color: "var(--utility)", dash: "2 4", label: "Medical gas" },
+  SUPPLIES_OXYGEN: { color: "var(--oxygen)", dash: "2 4", label: "Oxygen" },
+  SUPPLIES_MEDICAL_AIR: { color: "var(--air)", dash: "2 4", label: "Medical air" },
 };
 
 // Resolved theme colors for places that can't use CSS variables (WebGL, SVG attributes).
 export const cssVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 const RELATION_VAR = {
   POWERS: "--power", SUPPORTS_CONNECTIVITY: "--network", ENVIRONMENT_AFFECTS: "--environment",
-  SUPPLIES_OXYGEN: "--utility", SUPPLIES_MEDICAL_AIR: "--utility",
+  SUPPLIES_OXYGEN: "--oxygen", SUPPLIES_MEDICAL_AIR: "--air",
 };
 export const relationColor = (relation) => cssVar(RELATION_VAR[relation]);
 export const stateColor = (state) => cssVar({ ok: "--ok", watch: "--watch", alarm: "--alarm" }[state]);

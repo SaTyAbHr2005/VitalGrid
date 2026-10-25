@@ -25,12 +25,12 @@ The dashboard calls `http://localhost:8000` by default. To use another port, set
 
 ## Dashboard
 
-- `/`: homepage with an animated replay of a fault cascade.
-- `#/twin`: 2D floor plan, fault injection, alerts, and per-component telemetry.
-- `#/3d`: 3D building model of the ICU wing (three.js). Equipment sits in its rooms, dependencies run as ceiling conduits, and alarms light up rooms and failure paths.
+- `/`: homepage. Scrolling plays a UPS-02 fault through the 3D building: the voltage sags, the fault spreads, the rules check it, and the alert is explained (GSAP ScrollTrigger + Lenis). It works without the backend.
+- `#/twin`: 2D floor plan, fault injection, alerts, and monitor-style readouts for the selected equipment.
+- `#/3d`: 3D building model of the ICU wing (three.js). Equipment sits in its rooms and dependencies run as ceiling conduits. Alarms light up rooms and failure paths, and selecting equipment flies the camera to it.
 - `#/compare`: results for all methods.
 
-The dashboard is dark by default, with a toggle for light.
+The dashboard is dark by default, with a toggle for light. Visual rules (colours, type, motion, libraries) are in [design.md](design.md).
 
 ## Rebuild data and models (optional, takes about 40 min)
 

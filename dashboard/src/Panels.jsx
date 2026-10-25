@@ -1,7 +1,10 @@
-import { useEffect, useState } from "react";
-import { Line, LineChart, ResponsiveContainer, YAxis } from "recharts";
+import { useEffect, useRef, useState } from "react";
+import * as Select from "@radix-ui/react-select";
+import * as Slider from "@radix-ui/react-slider";
+import uPlot from "uplot";
+import "uplot/dist/uPlot.min.css";
 import { API_URL } from "./api.js";
-import { RELATION_STYLE, cssVar } from "./twin.js";
+import { RELATION_STYLE, nodeState, stateColor } from "./twin.js";
 
 const PROVIDER = { gemini: "Gemini", groq: "Groq", template: "Rule template" };
 
@@ -9,7 +12,7 @@ export function Alerts({ live, onSelect }) {
   const alerts = (live?.nodes || []).filter((n) => n.validated).sort((a, b) => b.p - a.p);
   if (live?.status && live.status !== "live") return <p className="empty">{live.status}</p>;
   if (!alerts.length)
-    return <p className="empty">No validated risks. Inject a fault below to watch a failure spread through the ICU.</p>;
+    return <p className="empty">No validated alerts. Cause a fault below to watch it spread through the ICU.</p>;
   return alerts.map((n) => (
     <div className="alert" key={n.id}>
       <div className="head">
@@ -31,8 +34,36 @@ export function Alerts({ live, onSelect }) {
   ));
 }
 
+export const FAULT_LABEL = {
+  grid_outage: "Grid outage", grid_gen_failure: "Grid and generator failure", ups_voltage_drop: "UPS voltage drop",
+  net_ups_failure: "Network UPS failure", switch_failure: "Network switch failure", o2_pressure_drop: "Oxygen pressure drop",
+  air_pressure_drop: "Medical air pressure drop", hvac_fault: "Air-conditioning fault", device_fault: "Device fault",
+  sensor_glitch: "Sensor glitch", normal: "No fault",
+};
+export const faultLabel = (t) => FAULT_LABEL[t] || t.replaceAll("_", " ");
+
+function Choice({ id, value, onChange, items, label }) {
+  return (
+    <Select.Root value={value} onValueChange={onChange}>
+      <Select.Trigger id={id} className="sel" aria-label={label}>
+        <Select.Value placeholder="Choose…" />
+        <Select.Icon className="sel-icon">▾</Select.Icon>
+      </Select.Trigger>
+      <Select.Portal>
+        <Select.Content className="sel-menu" position="popper" sideOffset={4}>
+          <Select.Viewport>
+            {items.map(([v, l]) => (
+              <Select.Item key={v} value={v} className="sel-item"><Select.ItemText>{l}</Select.ItemText></Select.Item>
+            ))}
+          </Select.Viewport>
+        </Select.Content>
+      </Select.Portal>
+    </Select.Root>
+  );
+}
+
 export function Inject({ faults, onChange }) {
-  const types = Object.keys(faults || {});
+  const types = Object.keys(faults || {}).filter((t) => t !== "normal");
   const [type, setType] = useState("ups_voltage_drop");
   const [node, setNode] = useState("");
   const [severity, setSeverity] = useState(0.8);
@@ -51,30 +82,48 @@ export function Inject({ faults, onChange }) {
 
   return (
     <div className="inject">
-      <h2>Inject a fault</h2>
+      <h2>Cause a fault</h2>
       <label htmlFor="ft">Fault</label>
-      <select id="ft" value={type} onChange={(e) => setType(e.target.value)}>
-        {types.map((t) => <option key={t} value={t}>{t.replaceAll("_", " ")}</option>)}
-      </select>
+      <Choice id="ft" label="Fault" value={type} onChange={setType} items={types.map((t) => [t, faultLabel(t)])} />
       <label htmlFor="fn">Starts at</label>
-      <select id="fn" value={node} onChange={(e) => setNode(e.target.value)}>
-        {nodes.map((n) => <option key={n}>{n}</option>)}
-      </select>
+      <Choice id="fn" label="Starts at" value={node} onChange={setNode} items={nodes.map((n) => [n, n])} />
       <label htmlFor="sev">Severity {severity.toFixed(2)}</label>
-      <input id="sev" type="range" min="0" max="1" step="0.05" value={severity}
-        onChange={(e) => setSeverity(Number(e.target.value))} />
+      <Slider.Root id="sev" className="sld" min={0} max={1} step={0.05} value={[severity]} onValueChange={([v]) => setSeverity(v)}>
+        <Slider.Track className="sld-track"><Slider.Range className="sld-range" /></Slider.Track>
+        <Slider.Thumb className="sld-thumb" aria-label="Severity" />
+      </Slider.Root>
       <div className="actions">
         <button className="btn" disabled={!node}
           onClick={() => post("/inject", { fault_type: type, node_id: node, severity })
-            .then((j) => { setMsg(`Injected ${type.replaceAll("_", " ")} at ${node}.`); onChange(j.fault); })
-            .catch((e) => setMsg(`Injection failed: ${e.message}`))}>Inject fault</button>
+            .then((j) => { setMsg(`Fault injected: ${faultLabel(type).toLowerCase()} at ${node}.`); onChange(j.fault); })
+            .catch((e) => setMsg(`The fault was not injected: ${e.message}`))}>Inject fault</button>
         <button className="btn quiet"
-          onClick={() => post("/reset").then(() => { setMsg("Faults cleared. Batteries recharge over the next minutes."); onChange(null); })
-            .catch((e) => setMsg(`Clearing failed: ${e.message}`))}>Clear faults</button>
+          onClick={() => post("/reset").then(() => { setMsg("All faults cleared. Batteries recharge over the next few minutes."); onChange(null); })
+            .catch((e) => setMsg(`Faults were not cleared: ${e.message}`))}>Clear faults</button>
       </div>
       {msg && <p className="empty" style={{ marginTop: 8 }}>{msg}</p>}
     </div>
   );
+}
+
+const UNIT = { voltage: "V", current: "A", battery: "%", temp: "°C", freq: "Hz", humidity: "%", co2: "ppm", latency: "ms" };
+
+// A bedside-monitor style trace: no axes, just the waveform.
+function Trace({ xs, ys, color }) {
+  const box = useRef(null), plot = useRef(null);
+  useEffect(() => {
+    const el = box.current;
+    plot.current = new uPlot({
+      width: el.clientWidth, height: 40, legend: { show: false }, cursor: { show: false },
+      scales: { x: { time: false } }, axes: [{ show: false }, { show: false }],
+      series: [{}, { stroke: color, width: 1.5, points: { show: false } }],
+    }, [[], []], el);
+    const ro = new ResizeObserver(() => plot.current.setSize({ width: el.clientWidth, height: 40 }));
+    ro.observe(el);
+    return () => { ro.disconnect(); plot.current.destroy(); };
+  }, [color]);
+  useEffect(() => { plot.current?.setData([xs, ys]); }, [xs, ys]);
+  return <div ref={box} className="trace" />;
 }
 
 export function NodeDetail({ nodeId, live }) {
@@ -82,6 +131,7 @@ export function NodeDetail({ nodeId, live }) {
   useEffect(() => {
     if (!nodeId) return;
     let stop = false;
+    setData(null);
     const load = () => fetch(`${API_URL}/nodes/${nodeId}/telemetry?seconds=180`).then((r) => r.json())
       .then((j) => !stop && setData(j)).catch(() => {});
     load();
@@ -89,24 +139,30 @@ export function NodeDetail({ nodeId, live }) {
     return () => { stop = true; clearInterval(t); };
   }, [nodeId]);
 
-  if (!nodeId) return <p className="empty">Select a component on the twin to see its last 3 minutes of telemetry.</p>;
+  if (!nodeId) return <p className="empty">Select equipment on the twin to see its last 3 minutes of readings.</p>;
   const n = (live?.nodes || []).find((x) => x.id === nodeId);
+  const state = nodeState(n);
+  const color = stateColor(state);
+  const xs = (data?.points || []).map((_, i) => i);
   return (
-    <div>
-      <h2>{nodeId}: anomaly {n ? n.r.toFixed(2) : "–"}, predicted risk {n ? n.p.toFixed(2) : "–"}</h2>
-      <div className="charts">
+    <div className="detail">
+      <div className="detail-head">
+        <h2>{nodeId}</h2>
+        <span className={`state ${state}`}>{{ ok: "Normal", watch: "Being watched", alarm: "Validated alert" }[state]}</span>
+        <span className="detail-scores">Anomaly score {n ? n.r.toFixed(2) : "–"}. Predicted risk {n ? n.p.toFixed(2) : "–"}.</span>
+      </div>
+      <div className="readouts">
         {(data?.metrics || []).map((m) => {
-          const pts = data.points.map((p) => ({ v: p[m] }));
-          const last = pts.at(-1)?.v;
+          const ys = data.points.map((p) => p[m]);
+          const last = ys.at(-1);
           return (
-            <div className="chart" key={m}>
-              {m.replaceAll("_", " ")} <b>{last !== undefined ? last.toFixed(2) : "–"}</b>
-              <ResponsiveContainer width="100%" height={48}>
-                <LineChart data={pts}>
-                  <YAxis hide domain={["auto", "auto"]} />
-                  <Line dataKey="v" dot={false} stroke={cssVar("--power")} strokeWidth={1.4} isAnimationActive={false} />
-                </LineChart>
-              </ResponsiveContainer>
+            <div className="vital" key={m}>
+              <span className="vital-label">{m.replaceAll("_", " ")}</span>
+              <span className="vital-value" style={{ color }}>
+                {last !== undefined ? last.toFixed(Math.abs(last) >= 100 ? 0 : 2) : "–"}
+                {UNIT[m] && <small> {UNIT[m]}</small>}
+              </span>
+              <Trace xs={xs} ys={ys} color={color} />
             </div>
           );
         })}
@@ -173,13 +229,5 @@ export function Compare() {
         );
       })}
     </div>
-  );
-}
-
-export function ThemeToggle({ theme, onToggle }) {
-  return (
-    <button className="theme" onClick={onToggle} aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} background`}>
-      {theme === "dark" ? "Light background" : "Dark background"}
-    </button>
   );
 }
