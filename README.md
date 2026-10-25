@@ -23,6 +23,15 @@ npm --prefix dashboard run dev         # http://localhost:5173
 
 The dashboard calls `http://localhost:8000` by default. To use another port, set `VITE_API_URL` in `dashboard/.env.local`.
 
+## Dashboard
+
+- `/`: homepage with an animated replay of a fault cascade.
+- `#/twin`: 2D floor plan, fault injection, alerts, and per-component telemetry.
+- `#/3d`: 3D building model of the ICU wing (three.js). Equipment sits in its rooms, dependencies run as ceiling conduits, and alarms light up rooms and failure paths.
+- `#/compare`: results for all methods.
+
+The dashboard is dark by default, with a toggle for light.
+
 ## Rebuild data and models (optional, takes about 40 min)
 
 These steps need the training extras (`torch`, `onnx`). The models in `models/` are already trained, so you only need this to change the data or the models.
