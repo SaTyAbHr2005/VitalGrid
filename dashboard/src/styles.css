@@ -216,3 +216,26 @@ button, select, input { font: inherit; color: inherit; }
 @media (prefers-reduced-motion: reduce) {
   .react-flow__edge-path { animation: none !important; }
 }
+
+/* 3D building view labels (CSS2D overlay) */
+.tw3-label {
+  font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px; white-space: nowrap;
+  background: var(--legend-bg); color: var(--ink); border: 1px solid var(--rule);
+  pointer-events: auto; cursor: pointer;
+}
+.tw3-label.watch { border-color: var(--watch); color: var(--watch); }
+.tw3-label.alarm { background: var(--alarm); border-color: var(--alarm); color: var(--on-ink); }
+.tw3-label.selected { outline: 2px solid var(--ink); outline-offset: 1px; }
+.tw3-area {
+  font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--ink-soft); white-space: nowrap; pointer-events: none;
+}
+.tw3-hint {
+  position: absolute; left: 12px; bottom: 8px; z-index: 1; margin: 0; pointer-events: none;
+  font-size: 11px; color: var(--ink-soft);
+}
+.tw3-label.hidden { display: none; }
+.tw3-toggle {
+  position: absolute; top: 10px; right: 10px; z-index: 1; font-size: 12px; padding: 5px 10px; border-radius: 6px;
+  background: var(--legend-bg); color: var(--ink); border: 1px solid var(--rule); cursor: pointer;
+}

@@ -108,7 +108,7 @@ function Dashboard({ view, hash, theme, toggleTheme }) {
               {graph && (view === "2d"
                 ? <Twin2D graph={graph} live={live} selected={selected} onSelect={setSelected} theme={theme} />
                 : <Suspense fallback={<p className="empty" style={{ padding: 20 }}>Loading 3D view…</p>}>
-                    <Twin3D graph={graph} live={live} onSelect={setSelected} theme={theme} />
+                    <Twin3D graph={graph} live={live} selected={selected} onSelect={setSelected} theme={theme} />
                   </Suspense>)}
               {view === "2d" && <Legend />}
             </div>
