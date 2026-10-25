@@ -8,11 +8,21 @@ import { RELATION_STYLE, nodeState, stateColor } from "./twin.js";
 
 const PROVIDER = { gemini: "Gemini", groq: "Groq", template: "Rule template" };
 
+// Why an active fault has no validated alert. The rules in backend/rules.py decide; this names the one that applies.
+function noAlertReason(live) {
+  const f = live?.fault;
+  if (!f || f.type === "normal") return "No validated alerts. Cause a fault below to watch it spread through the ICU.";
+  const r = live.nodes?.find((n) => n.id === f.source)?.r;
+  const seen = r >= 0.7 ? `The anomaly model flagged ${f.source} (risk ${r.toFixed(2)}), but the` : "The";
+  if (f.type === "sensor_glitch")
+    return `${seen} rules rejected it as a sensor glitch. The spike lasted only a few seconds, and rule R4 needs an anomaly to hold for most of the last 10 s. No equipment actually failed, so nothing downstream is at risk.`;
+  return `${seen} rules have not confirmed the ${faultLabel(f.type).toLowerCase()} at ${f.source} yet. A real fault takes 15 to 30 s to push readings past their safety limits (rule R2) and hold there for 10 s (rule R4).`;
+}
+
 export function Alerts({ live, onSelect }) {
   const alerts = (live?.nodes || []).filter((n) => n.validated).sort((a, b) => b.p - a.p);
   if (live?.status && live.status !== "live") return <p className="empty">{live.status}</p>;
-  if (!alerts.length)
-    return <p className="empty">No validated alerts. Cause a fault below to watch it spread through the ICU.</p>;
+  if (!alerts.length) return <p className="empty">{noAlertReason(live)}</p>;
   return alerts.map((n) => (
     <div className="alert" key={n.id}>
       <div className="head">
