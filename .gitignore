@@ -5,3 +5,4 @@ dist/
 *.parquet
 data/
 *.local
+PROJECT_EXPLAINED.md
